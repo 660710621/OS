@@ -4,6 +4,10 @@ public class Process {
     Random rand = new Random();
     int PID ;
     Boolean isBoss=false;
+    Thread beatSender;
+    Thread beatListener;
+    Thread failureDetector;
+    
     Process(){
         PID=rand.nextInt(100);
     }
