@@ -3,8 +3,11 @@ public class FailureDetectorBossElectionThread {
     FailureDetectorBossElectionThread(int PID){
         this.PID=PID;
     }
-    public void run(){
 
+    public void run(){
+        while(true){
+
+        }
         
     }
     

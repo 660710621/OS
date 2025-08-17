@@ -3,9 +3,11 @@ public class HeartBeatSenderThread implements Runnable{
     HeartBeatSenderThread(int PID){
         this.PID=PID;
     }
-
+    @Override
     public void run(){
+        while(true){
         sendBeat();
+        }
     }
     String sendBeat(){
         return PID+"is alive";

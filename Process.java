@@ -1,5 +1,6 @@
 import java.util.Random;
 
+
 public class Process {
     Random rand = new Random();
     int PID ;
@@ -9,7 +10,8 @@ public class Process {
     Thread failureDetector;
     
     Process(){
-        PID=rand.nextInt(100);
+        PID=processID;
+        processID++;
     }
     
     
