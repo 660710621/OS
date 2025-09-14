@@ -9,7 +9,7 @@ public class Demo {
         
         for(int i = 0; i < n; i++){
             Random random = new Random();
-            int PID = random.nextInt(100); 
+            int PID = random.nextInt(100);
             process[i] = new Process(PID,false);
             System.out.println("Process " + i + " มี PID = " + PID);
         }
