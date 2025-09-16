@@ -12,9 +12,10 @@ class ProcessNode:
         process.channel = "Heartbeat"
 
     def start(process):
-        threading.Thread(target=process.heartbeat_sender).start()
-        threading.Thread(target=process.heartbeat_Listener).start()
-        threading.Thread(target=process.failure_detectorAndBoss_Election).start()
+        threading.Thread(target=process.heartbeat_sender,daemon= True).start()
+        threading.Thread(target=process.heartbeat_listener,daemon= True).start()
+        threading.Thread(target=process.failure_detector_boss_election,daemon= True).start()
+    #ทำงาน background, ไม่บังคับให้เสร็จก่อน main ปิด | main ปิด → มันถูก kill ทันที | เหมาะงานที่ทำซ้ำ/ไม่มีวันเสร็จ
 
     # ส่ง heartbeat ทุก 1 วินาที
     def heartbeat_sender(process):
@@ -42,13 +43,15 @@ class ProcessNode:
     def failure_detector_boss_election(process):
         while True:
             now = time.time()
-            alive_pids = [pid for pid, t in process.members.items() if now - t < 20]
-            alive_pids.append(process.pid)
-
+            alive_pids = [] # for pid, t in process.members.items() if now - t < 20
             dead_pids = []
             for pid, t in process.members.items():
-                if now - t >= 20:  # ถ้า heartbeat ล่าสุดเกิน 20 วินาที
+                if now - t < 20:  # ถ้า heartbeat ล่าสุดน้อยกว่า 20 วินาที
+                    alive_pids.append(pid)
+                else:
                     dead_pids.append(pid)
+
+            alive_pids.append(process.pid)
 
             if dead_pids:
                 print(f" Dead PIDs detected: {dead_pids}")
