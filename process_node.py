@@ -24,7 +24,7 @@ class ProcessNode:
             time.sleep(1)
 
     # ฟัง heartbeat จาก Redis
-    def heartbeat_Listener(process):
+    def heartbeat_listener(process):
         pubsub = process.redis.pubsub()
         pubsub.subscribe(process.channel)
 
@@ -39,7 +39,7 @@ class ProcessNode:
 
 
     # ตรวจสอบ failure และเลือก Boss
-    def failure_detectorAndBoss_Election(process):
+    def failure_detectorandboss_election(process):
         while True:
             now = time.time()
             alive_pids = [pid for pid, t in process.members.items() if now - t < 20]
