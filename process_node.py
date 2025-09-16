@@ -12,9 +12,9 @@ class ProcessNode:
         process.channel = "Heartbeat"
 
     def start(process):
-        threading.Thread(target=process.heartbeat_sender, daemon=True).start()
-        threading.Thread(target=process.heartbeat_Listener, daemon=True).start()
-        threading.Thread(target=process.failure_detectorAndBoss_Election, daemon=True).start()
+        threading.Thread(target=process.heartbeat_sender).start()
+        threading.Thread(target=process.heartbeat_Listener).start()
+        threading.Thread(target=process.failure_detectorAndBoss_Election).start()
 
     # ส่ง heartbeat ทุก 1 วินาที
     def heartbeat_sender(process):
