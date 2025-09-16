@@ -39,7 +39,7 @@ class ProcessNode:
 
 
     # ตรวจสอบ failure และเลือก Boss
-    def failure_detectorandboss_election(process):
+    def failure_detector_boss_election(process):
         while True:
             now = time.time()
             alive_pids = [pid for pid, t in process.members.items() if now - t < 20]
