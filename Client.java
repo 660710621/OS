@@ -9,14 +9,15 @@ public class Client {
     
     // โหมด 1: Standard I/O | โหมดอื่นๆ: Zero-Copy
     public void transferFile(String serverIp, Path filePath, int transferMode) throws IOException {
-        Socket socket = null;
         DataOutputStream dataOut = null;
         FileChannel fileChannel = null;
         FileInputStream fileIn = null;
+        SocketChannel socketChannel = null;
 
         try {
             // 1. เชื่อมต่อ Socket
-            socket = new Socket(serverIp, SERVER_PORT);
+            socketChannel = SocketChannel.open(new InetSocketAddress(serverIp, SERVER_PORT));
+            Socket socket = socketChannel.socket();
             dataOut = new DataOutputStream(socket.getOutputStream());
             long fileSize = Files.size(filePath);
 
@@ -46,7 +47,7 @@ public class Client {
                 fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
                 
                 // ใช้ Zero-Copy: transferTo สั่งให้ Kernel โอนข้อมูลจากไฟล์ไปยัง Socket โดยตรง
-                fileChannel.transferTo(0, fileSize, socket.getChannel());
+                fileChannel.transferTo(0, fileSize, socketChannel);
             }
 
             socket.shutdownOutput(); // แจ้งให้ Server ทราบว่าการส่งเสร็จสิ้น
@@ -60,7 +61,7 @@ public class Client {
             try { if (fileChannel != null) fileChannel.close(); } catch (IOException e) {}
             try { if (fileIn != null) fileIn.close(); } catch (IOException e) {}
             try { if (dataOut != null) dataOut.close(); } catch (IOException e) {}
-            try { if (socket != null) socket.close(); } catch (IOException e) {}
+            try { if (socketChannel != null) socketChannel.close(); } catch (IOException e) {}
         }
     }
 
