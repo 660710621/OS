@@ -2,7 +2,8 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+import java.nio.channels.FileChannel;
+import java.nio.channels.Channels;
 class ServerHandler implements Runnable {
     private final Socket clientSocket;
     private final File sharedDir = Server.SHARED_DIR;
@@ -41,7 +42,7 @@ class ServerHandler implements Runnable {
     // --- ฟังก์ชัน A: จัดการคำขอส่วนไฟล์ย่อย ---
     private void handleChunkRequest(String dataPacket, DataOutputStream output) throws IOException {
         String[] parts = dataPacket.split(",");
-        if (parts.length != 4) {
+        if (parts.length != 5) {
             System.err.println("Invalid data packet format: " + dataPacket);
             return;
         }
@@ -50,40 +51,46 @@ class ServerHandler implements Runnable {
         // parts[1] คือ indexthread (ไม่จำเป็นสำหรับเซิร์ฟเวอร์)
         long startByte = Long.parseLong(parts[2]);
         long endByte = Long.parseLong(parts[3]);
-
+        String mode = parts[4];
         File fileToServe = new File(sharedDir, fileName);
-        if (!fileToServe.exists()) {
+        if (!fileToServe.exists() || !fileToServe.isFile()) {
             System.err.println("File not found: " + fileName);
             // ไม่มีวิธีมาตรฐานในการตอบกลับ error ใน DataOutputStream สำหรับกรณีนี้
             // เซิร์ฟเวอร์ทำได้แค่ปิด Socket หรือไม่ส่งข้อมูล
             return; 
         }
+        long bytesToSend = endByte - startByte + 1;
+        System.out.println("Sending chunk " + startByte + "-" + endByte + " for " + fileName + " (Mode: " + mode + ")");
+    if (mode.equalsIgnoreCase("zerocopy")) {
+            // --- โหมด ZERO-COPY: ใช้ FileChannel.transferTo ---
+            try (RandomAccessFile raf = new RandomAccessFile(fileToServe, "r");
+                 FileChannel fileChannel = raf.getChannel();
+                 java.nio.channels.WritableByteChannel socketChannel = Channels.newChannel(output)) {
 
-        // ใช้ RandomAccessFile เพื่อเข้าถึงและอ่านไฟล์เฉพาะช่วง
-        try (RandomAccessFile raf = new RandomAccessFile(fileToServe, "r")) {
-            long bytesToSend = endByte - startByte + 1;
-            long bytesRemaining = bytesToSend;
-            
-            // เลื่อน Pointer ไปยังจุดเริ่มต้นที่ร้องขอ
-            raf.seek(startByte);
-            
-            byte[] buffer = new byte[64 * 1024]; // 64KB buffer
-            int bytesRead;
-
-            System.out.println("Sending chunk " + startByte + "-" + endByte + " for " + fileName);
-
-            // วนลูปเพื่ออ่านและส่งข้อมูลตามจำนวนไบต์ที่เหลือที่ต้องส่ง
-            while (bytesRemaining > 0 && 
-                   (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, bytesRemaining))) > 0) {
+                long transferred = fileChannel.transferTo(startByte, bytesToSend, socketChannel);
                 
-                output.write(buffer, 0, bytesRead);
-                bytesRemaining -= bytesRead;
+                if (transferred != bytesToSend) {
+                     System.err.println("ZeroCopy failed to send all bytes. Expected: " + bytesToSend + ", Sent: " + transferred);
+                }
             }
-            output.flush();
-            System.out.println("Finished sending chunk. Bytes sent: " + (bytesToSend - bytesRemaining));
+        } else {
+            // --- โหมด BUFFERED (Default): ใช้ Stream I/O ---
+            try (RandomAccessFile raf = new RandomAccessFile(fileToServe, "r")) {
+                long bytesRemaining = bytesToSend;
+                
+                raf.seek(startByte);
+                
+                byte[] buffer = new byte[64 * 1024]; 
+                int bytesRead;
 
-        } catch (IOException e) {
-            System.err.println("Error reading/sending file chunk: " + e.getMessage());
+                while (bytesRemaining > 0 && 
+                       (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, bytesRemaining))) > 0) {
+                    
+                    output.write(buffer, 0, bytesRead);
+                    bytesRemaining -= bytesRead;
+                }
+                output.flush();
+            }
         }
     }
     
@@ -111,6 +118,11 @@ public class Server {
     static final ExecutorService threadPool = Executors.newFixedThreadPool(16); // ใช้ Thread Pool 10 ตัว
 
     public static void main(String[] args) {
+        if (args.length < 1) {
+            System.out.println("Usage: java Server <Port Number>");
+            System.out.println("Example: java Server 9000");
+            return; // ออกจากโปรแกรมทันที
+        }
         int PORT;
         try {
             PORT = Integer.parseInt(args[0]);
