@@ -8,6 +8,7 @@ import java.net.*;
 class ServerHandler implements Runnable {
     private final Socket clientSocket;
     private final File sharedDir = Server.SHARED_DIR;
+    
 
     public ServerHandler(Socket socket) {
         this.clientSocket = socket;
@@ -107,11 +108,18 @@ class ServerHandler implements Runnable {
     }
 }
 public class Server {
-    static final int PORT = 9000;
+    
     static final File SHARED_DIR = new File("SharedFiles");
     static final ExecutorService threadPool = Executors.newFixedThreadPool(16); // ใช้ Thread Pool 10 ตัว
 
     public static void main(String[] args) {
+        int PORT;
+        try {
+            PORT = Integer.parseInt(args[0]);
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid port number: " + args[0]);
+            return;
+        }
         if (!SHARED_DIR.exists()) {
             SHARED_DIR.mkdir();
             System.out.println("Created shared directory at: " + SHARED_DIR.getAbsolutePath());
