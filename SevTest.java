@@ -2,7 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 
-public class Server {
+public class SevTest {
     private static final int SERVER_PORT = 9000;
     private static final Path RECEIVED_PATH = Paths.get("received_file.dat"); 
 
@@ -37,12 +37,18 @@ public class Server {
             System.out.println("เริ่มรับไฟล์ด้วย " + modeName + " ขนาด: " + fileSize + " bytes");
 
             byte[] buffer = new byte[8192]; //8KB buffer
-            int read = dataIn.read(buffer, 0, (int) Math.min(buffer.length, remaining));
-
+            int read ;
             // ลูปรับข้อมูลจนกว่าจะครบตามขนาดไฟล์ที่ Header บอก
-            while (remaining > 0 && read != -1) {
+            while (remaining > 0 ) {
+                read =dataIn.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                System.out.println("`Read:"+ read);
+                if(read<0){
+                    break;
+                }
+                
                 bytesTransferred += read;
                 remaining -= read;
+                System.out.println("`Remaining:"+ remaining);
                 fileOut.write(buffer, 0, read);
             }
             
