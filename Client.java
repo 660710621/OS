@@ -18,7 +18,7 @@ class Threaddownload extends Thread {
     long endbyte;
     private final String serverIp;
     private final int serverPort;
-    private final String mode; // ต้องคงตัวแปรนี้ไว้เพื่อบอก Server ว่าใช้โหมดไหนในการส่งไฟล์
+    private final String mode; // ตัวแปรนี้ไว้เพื่อบอก Server ว่าใช้โหมดไหนในการส่งไฟล์
 
     public Threaddownload(String pathfile, String savefile, int indexthread, long startbyte, long endbyte, String serverIp, int serverPort, String mode) {
         this.pathfile = pathfile;

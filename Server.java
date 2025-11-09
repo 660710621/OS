@@ -4,10 +4,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.nio.channels.FileChannel;
 import java.nio.channels.Channels;
+
 class ServerHandler implements Runnable {
     private final Socket clientSocket;
     private final File sharedDir = Server.SHARED_DIR;
-    
 
     public ServerHandler(Socket socket) {
         this.clientSocket = socket;
@@ -16,12 +16,12 @@ class ServerHandler implements Runnable {
     @Override
     public void run() {
         try (Socket socket = this.clientSocket;
-             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-             DataOutputStream output = new DataOutputStream(socket.getOutputStream())) {
+                DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+                DataOutputStream output = new DataOutputStream(socket.getOutputStream())) {
 
             // 1. รับคำสั่งแรกจากไคลเอนต์
             String receivedData = input.readUTF();
-            
+
             // ตรวจสอบว่าคำสั่งนี้เป็นการขอขนาดไฟล์ หรือเป็นการขอส่วนไฟล์ย่อย
             if (receivedData.contains(",")) {
                 // *** A. จัดการคำขอส่วนไฟล์ย่อย (จาก Threaddownload) ***
@@ -38,7 +38,7 @@ class ServerHandler implements Runnable {
             System.err.println("Handler exception: " + e.getMessage());
         }
     }
-    
+
     // --- ฟังก์ชัน A: จัดการคำขอส่วนไฟล์ย่อย ---
     private void handleChunkRequest(String dataPacket, DataOutputStream output) throws IOException {
         String[] parts = dataPacket.split(",");
@@ -57,35 +57,36 @@ class ServerHandler implements Runnable {
             System.err.println("File not found: " + fileName);
             // ไม่มีวิธีมาตรฐานในการตอบกลับ error ใน DataOutputStream สำหรับกรณีนี้
             // เซิร์ฟเวอร์ทำได้แค่ปิด Socket หรือไม่ส่งข้อมูล
-            return; 
+            return;
         }
         long bytesToSend = endByte - startByte + 1;
         System.out.println("Sending chunk " + startByte + "-" + endByte + " for " + fileName + " (Mode: " + mode + ")");
-    if (mode.equalsIgnoreCase("zerocopy")) {
+        if (mode.equalsIgnoreCase("zerocopy")) {
             // --- โหมด ZERO-COPY: ใช้ FileChannel.transferTo ---
             try (RandomAccessFile raf = new RandomAccessFile(fileToServe, "r");
-                 FileChannel fileChannel = raf.getChannel();
-                 java.nio.channels.WritableByteChannel socketChannel = Channels.newChannel(output)) {
+                    FileChannel fileChannel = raf.getChannel();
+                    java.nio.channels.WritableByteChannel socketChannel = Channels.newChannel(output)) {
 
                 long transferred = fileChannel.transferTo(startByte, bytesToSend, socketChannel);
-                
+
                 if (transferred != bytesToSend) {
-                     System.err.println("ZeroCopy failed to send all bytes. Expected: " + bytesToSend + ", Sent: " + transferred);
+                    System.err.println(
+                            "ZeroCopy failed to send all bytes. Expected: " + bytesToSend + ", Sent: " + transferred);
                 }
             }
         } else {
             // --- โหมด BUFFERED (Default): ใช้ Stream I/O ---
             try (RandomAccessFile raf = new RandomAccessFile(fileToServe, "r")) {
                 long bytesRemaining = bytesToSend;
-                
+
                 raf.seek(startByte);
-                
-                byte[] buffer = new byte[64 * 1024]; 
+
+                byte[] buffer = new byte[64 * 1024];
                 int bytesRead;
 
-                while (bytesRemaining > 0 && 
-                       (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, bytesRemaining))) > 0) {
-                    
+                while (bytesRemaining > 0 &&
+                        (bytesRead = raf.read(buffer, 0, (int) Math.min(buffer.length, bytesRemaining))) > 0) {
+
                     output.write(buffer, 0, bytesRead);
                     bytesRemaining -= bytesRead;
                 }
@@ -93,12 +94,12 @@ class ServerHandler implements Runnable {
             }
         }
     }
-    
+
     // --- ฟังก์ชัน B: จัดการคำขอขนาดไฟล์ ---
     private void handleFileSizeRequest(String fileName, DataOutputStream output) throws IOException {
         File file = new File(sharedDir, fileName);
         long fileSize;
-        
+
         if (file.exists() && file.isFile()) {
             fileSize = file.length();
             System.out.println("Client requested file size for: " + fileName + ". Size: " + fileSize);
@@ -112,8 +113,9 @@ class ServerHandler implements Runnable {
         output.flush();
     }
 }
+
 public class Server {
-    
+
     static final File SHARED_DIR = new File("SharedFiles");
     static final ExecutorService threadPool = Executors.newFixedThreadPool(16); // ใช้ Thread Pool 10 ตัว
 
@@ -137,7 +139,7 @@ public class Server {
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("File Server running on port " + PORT + "...");
-            
+
             while (true) {
                 // รอรับการเชื่อมต่อใหม่จากไคลเอนต์ (Main Client หรือ Thread ย่อย)
                 Socket clientSocket = serverSocket.accept();
