@@ -173,7 +173,7 @@ class Client {
                 System.out.println("File not found on server or invalid file size.");
                 continue;
             }
-            int numberOfThreads = 4; 
+            int numberOfThreads = 2; 
 
             try {
                 // *** 3. PHASE 1: ดาวน์โหลดและเปรียบเทียบโหมด BUFFERED ***
