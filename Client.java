@@ -5,7 +5,9 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.util.Scanner;
-import java.io.InputStream;
+import java.nio.channels.FileChannel; 
+import java.nio.channels.Channels; 
+
 // Threaddownload คลาสเดิม (ต้องนำมาใช้ซ้ำ 2 ครั้ง)
 
 class Threaddownload extends Thread {
@@ -18,8 +20,7 @@ class Threaddownload extends Thread {
     private final int serverPort;
     private final String mode; // ตัวแปรนี้ไว้เพื่อบอก Server ว่าใช้โหมดไหนในการส่งไฟล์
 
-    public Threaddownload(String pathfile, String savefile, int indexthread, long startbyte, long endbyte,
-            String serverIp, int serverPort, String mode) {
+    public Threaddownload(String pathfile, String savefile, int indexthread, long startbyte, long endbyte, String serverIp, int serverPort, String mode) {
         this.pathfile = pathfile;
         this.savefile = savefile;
         this.indexthread = indexthread;
@@ -27,20 +28,19 @@ class Threaddownload extends Thread {
         this.endbyte = endbyte;
         this.serverIp = serverIp;
         this.serverPort = serverPort;
-        this.mode = mode;
+        this.mode = mode; 
     }
 
     @Override
     public void run() {
         try (Socket download = new Socket(serverIp, serverPort);
-                OutputStream outd = download.getOutputStream();
-                DataOutputStream outputdata = new DataOutputStream(outd);
-                RandomAccessFile raf = new RandomAccessFile(savefile, "rw");) {
+             OutputStream outd = download.getOutputStream();
+             DataOutputStream outputdata = new DataOutputStream(outd);
+             RandomAccessFile raf = new RandomAccessFile(savefile, "rw");) {
 
             // 1. ส่งคำขอในช่วงไบต์และโหมด
             // Server จะใช้โหมดนี้ในการเลือกวิธีส่งไฟล์
-            String dataPacket = pathfile + "," + this.indexthread + "," + this.startbyte + "," + this.endbyte + ","
-                    + this.mode;
+            String dataPacket = pathfile + "," + this.indexthread + "," + this.startbyte + "," + this.endbyte + "," + this.mode;
             outputdata.writeUTF(dataPacket);
             outputdata.flush();
 
@@ -49,19 +49,35 @@ class Threaddownload extends Thread {
             long threadfilesize = endbyte - startbyte + 1;
             long bytesRemaining = threadfilesize;
             long totalTransferred = 0;
-
+            
             // ตรรกะการรับข้อมูล Client ต้องสอดคล้องกับโหมดที่ Server ใช้
-            try (InputStream in = download.getInputStream()) {
-                byte[] bytes = new byte[1024 * 64];
-                int count;
+            if (mode.equalsIgnoreCase("zerocopy")) {
+                // --- โหมด ZERO-COPY: ใช้ FileChannel.transferFrom (NIO) ---
+                try (FileChannel fileChannel = raf.getChannel();
+                     java.nio.channels.ReadableByteChannel socketChannel = Channels.newChannel(download.getInputStream())) {
 
-                // โค้ดนี้ใช้ได้กับข้อมูลที่ส่งมาจาก Socket Stream ไม่ว่าจะถูกส่งมาจาก Zero-Copy
-                // หรือ Buffered I/O ของ Server ก็ตาม
-                while (bytesRemaining > 0
-                        && (count = in.read(bytes, 0, (int) Math.min(bytes.length, bytesRemaining))) != -1) {
-                    raf.write(bytes, 0, count);
-                    bytesRemaining -= count;
-                    totalTransferred += count;
+                    while (totalTransferred < threadfilesize) {
+                        // transferFrom จะจัดการการเขียนลง RandomAccessFile/FileChannel ให้
+                        long transferred = fileChannel.transferFrom(socketChannel, startbyte + totalTransferred, threadfilesize - totalTransferred);
+                        if (transferred == 0 && totalTransferred < threadfilesize) {
+                            continue;
+                        }
+                        totalTransferred += transferred;
+                    }
+                    bytesRemaining = threadfilesize - totalTransferred; 
+
+                }
+            } else {
+                // --- โหมด BUFFERED (Default): ใช้ Stream I/O ---
+                try (BufferedInputStream in = new BufferedInputStream(download.getInputStream())) {
+                    byte[] bytes = new byte[1024 * 64]; 
+                    int count;
+                    
+                    while (bytesRemaining > 0 && (count = in.read(bytes, 0, (int) Math.min(bytes.length, bytesRemaining))) != -1) {
+                        raf.write(bytes, 0, count);
+                        bytesRemaining -= count;
+                        totalTransferred += count;
+                    }
                 }
             }
 
@@ -69,8 +85,7 @@ class Threaddownload extends Thread {
             if (bytesRemaining == 0) {
                 // System.out.println("Thread " + indexthread + " finished. Mode: " + mode);
             } else {
-                System.err.println("Thread " + indexthread + " Error: Received size mismatch. Missing: "
-                        + bytesRemaining + " bytes. Mode: " + mode);
+                System.err.println("Thread " + indexthread + " Error: Received size mismatch. Missing: " + bytesRemaining + " bytes. Mode: " + mode);
             }
         } catch (Exception e) {
             System.out.println(e);
@@ -79,17 +94,16 @@ class Threaddownload extends Thread {
 }
 
 class Client {
-
+    
     // เมธอดสำหรับสร้างและรันชุด Thread ดาวน์โหลด
-    private static void runDownloadPhase(String serverIp, int serverPort, String mode, String send, long fileSize,
-            int numberOfThreads) throws Exception {
-
+    private static void runDownloadPhase(String serverIp, int serverPort, String mode, String send, long fileSize, int numberOfThreads) throws Exception {
+        
         System.out.println("\n===== Starting Download in " + mode.toUpperCase() + " Mode =====");
         long startTime = System.currentTimeMillis();
-
+        
         // สร้างชื่อไฟล์ปลายทางเฉพาะโหมด
         String savefile = mode + "_downloaded_" + send.substring(send.lastIndexOf('/') + 1);
-
+        
         long partSize = fileSize / numberOfThreads;
         Threaddownload[] threads = new Threaddownload[numberOfThreads];
 
@@ -100,7 +114,7 @@ class Client {
             threads[i] = new Threaddownload(send, savefile, i, startbyte, endbyte, serverIp, serverPort, mode);
             threads[i].start();
         }
-
+        
         // รอให้ทุก Thread เสร็จ
         for (int i = 0; i < numberOfThreads; i++) {
             threads[i].join();
@@ -111,6 +125,7 @@ class Client {
         System.out.println("Time taken (" + mode + "): " + (endTime - startTime) + " ms");
     }
 
+
     public static void main(String[] args) {
         // *** 1. ตรวจสอบและรับ Argument 2 ตัว (IP และ Port เท่านั้น) ***
         if (args.length < 2) {
@@ -118,7 +133,7 @@ class Client {
             System.out.println("Example: java Client 192.168.1.100 9000");
             return;
         }
-
+        
         final String SERVER_IP = args[0];
         int SERVER_PORT;
 
@@ -141,8 +156,8 @@ class Client {
 
             // 2. ติดต่อ Server เพื่อขอขนาดไฟล์ (ทำครั้งเดียว)
             try (Socket client = new Socket(SERVER_IP, SERVER_PORT);
-                    DataOutputStream outputdata = new DataOutputStream(client.getOutputStream());
-                    DataInputStream in = new DataInputStream(new BufferedInputStream(client.getInputStream()));) {
+                DataOutputStream outputdata = new DataOutputStream(client.getOutputStream());
+                DataInputStream in = new DataInputStream(new BufferedInputStream(client.getInputStream()));) {
 
                 outputdata.writeUTF(send);
                 outputdata.flush();
@@ -152,20 +167,20 @@ class Client {
                 System.out.println("Error requesting file size: " + e.toString());
                 continue;
             }
-
-            if (fileSize <= 0) {
+            
+            if(fileSize <= 0){
                 System.out.println("File not found on server or invalid file size.");
                 continue;
             }
-            int numberOfThreads = 8;
+            int numberOfThreads = 8; 
 
             try {
                 // *** 3. PHASE 1: ดาวน์โหลดและเปรียบเทียบโหมด ZEROCOPY ***
                 runDownloadPhase(SERVER_IP, SERVER_PORT, "ZeroCopy", send, fileSize, numberOfThreads);
-
+                
                 // *** 4. PHASE 2: ดาวน์โหลดและเปรียบเทียบโหมด BUFFERED ***
                 runDownloadPhase(SERVER_IP, SERVER_PORT, "Buffered", send, fileSize, numberOfThreads);
-
+                
                 System.out.println("\n--- Comparison Complete ---");
 
             } catch (Exception e) {
