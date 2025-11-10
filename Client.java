@@ -60,7 +60,6 @@ class Threaddownload extends Thread {
                         // transferFrom จะจัดการการเขียนลง RandomAccessFile/FileChannel ให้
                         long transferred = fileChannel.transferFrom(socketChannel, startbyte + totalTransferred, threadfilesize - totalTransferred);
                         if (transferred == 0 && totalTransferred < threadfilesize) {
-                            Thread.sleep(10); 
                             continue;
                         }
                         totalTransferred += transferred;
@@ -173,7 +172,7 @@ class Client {
                 System.out.println("File not found on server or invalid file size.");
                 continue;
             }
-            int numberOfThreads = 2; 
+            int numberOfThreads = 8; 
 
             try {
                 // *** 3. PHASE 1: ดาวน์โหลดและเปรียบเทียบโหมด ZEROCOPY ***
