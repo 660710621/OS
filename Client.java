@@ -176,11 +176,11 @@ class Client {
             int numberOfThreads = 2; 
 
             try {
-                // *** 3. PHASE 1: ดาวน์โหลดและเปรียบเทียบโหมด BUFFERED ***
-                runDownloadPhase(SERVER_IP, SERVER_PORT, "Buffered", send, fileSize, numberOfThreads);
-                
-                // *** 4. PHASE 2: ดาวน์โหลดและเปรียบเทียบโหมด ZEROCOPY ***
+                // *** 3. PHASE 1: ดาวน์โหลดและเปรียบเทียบโหมด ZEROCOPY ***
                 runDownloadPhase(SERVER_IP, SERVER_PORT, "ZeroCopy", send, fileSize, numberOfThreads);
+                
+                // *** 4. PHASE 2: ดาวน์โหลดและเปรียบเทียบโหมด BUFFERED ***
+                runDownloadPhase(SERVER_IP, SERVER_PORT, "Buffered", send, fileSize, numberOfThreads);
                 
                 System.out.println("\n--- Comparison Complete ---");
 
